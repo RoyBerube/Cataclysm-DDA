@@ -7689,6 +7689,7 @@ bool Character::pour_into( item &container, item &liquid )
 {
     std::string err;
     const int amount = container.get_remaining_capacity_for_liquid( liquid, *this, &err );
+    const bool fave_save = liquid.is_favorite;
 
     if( !err.empty() ) {
         if( !container.has_item_with( [&liquid]( const item & it ) {
@@ -7705,11 +7706,27 @@ bool Character::pour_into( item &container, item &liquid )
 
     add_msg_if_player( _( "You pour %1$s into the %2$s." ), liquid.tname(), container.tname() );
 
+    // Transfer the liquid using the same favorite flag as the container's content.
+    // Otherwise two stacks can appear - favorite and non-favorite.
+    bool reload_fave;
+    if( container.has_item_with( [&liquid]( const item & it ) {
+    return it.typeId() == liquid.typeId();
+    } ) ) {
+        // If there is ammo in destination then use its favorite setting.
+        reload_fave = container.has_item_with( [&liquid]( const item & it ) {
+            return it.typeId() == liquid.typeId() && it.is_favorite;
+        } );
+        // If no ammo in destination then use the container favorite setting.
+    } else {
+        reload_fave = container.is_favorite;
+    }
+    liquid.set_favorite( reload_fave );
     liquid.charges -= container.fill_with( liquid, amount );
     inv->unsort();
 
     if( liquid.charges > 0 ) {
         add_msg_if_player( _( "There's some left over!" ) );
+        liquid.set_favorite( fave_save );
     }
 
     return true;

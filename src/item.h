@@ -543,11 +543,20 @@ class item : public visitable
          * stacks like "3 items-count-by-charge (5)".
          */
         bool display_stacked_with( const item &rhs, bool check_components = false ) const;
+
+        /**
+        * Determines if two items can be stacked.
+        * @param rhs Other item to compare.
+        * @param check_components Checks if components are the same on both items.
+        * @param combine_liquid Is liquid merging allowed based on phase and temperature.
+        * @param ignore_favorite Ignore the favorite status, such as when reloading or unloading.
+        * @returns bool Whether to allow merging or not.
+        */
         bool stacks_with( const item &rhs, bool check_components = false,
-                          bool combine_liquid = false ) const;
+                          bool combine_liquid = false, bool ignore_favorite = false ) const;
         /** combines two items together if possible. returns false if it fails. */
         bool combine( const item &rhs );
-        bool can_combine( const item &rhs ) const;
+        bool can_combine( const item &rhs, bool ignore_favorite = false ) const;
         /**
          * Merge charges of the other item into this item.
          * @return true if the items have been merged, otherwise false.

@@ -939,7 +939,7 @@ bool item::display_stacked_with( const item &rhs, bool check_components ) const
     return !count_by_charges() && stacks_with( rhs, check_components );
 }
 
-bool item::can_combine( const item &rhs ) const
+bool item::can_combine( const item &rhs, bool ignore_favorite ) const
 {
     if( !contents.empty() || !rhs.contents.empty() ) {
         return false;
@@ -947,7 +947,7 @@ bool item::can_combine( const item &rhs ) const
     if( !count_by_charges() ) {
         return false;
     }
-    if( !stacks_with( rhs, true, true ) ) {
+    if( !stacks_with( rhs, true, true, ignore_favorite ) ) {
         return false;
     }
     return true;
@@ -977,7 +977,8 @@ bool item::combine( const item &rhs )
     return true;
 }
 
-bool item::stacks_with( const item &rhs, bool check_components, bool combine_liquid ) const
+bool item::stacks_with( const item &rhs, bool check_components, bool combine_liquid,
+                        bool ignore_favorite ) const
 {
     if( type != rhs.type ) {
         return false;
@@ -994,7 +995,7 @@ bool item::stacks_with( const item &rhs, bool check_components, bool combine_liq
     if( !count_by_charges() && charges != rhs.charges ) {
         return false;
     }
-    if( is_favorite != rhs.is_favorite ) {
+    if( !ignore_favorite && is_favorite != rhs.is_favorite ) {
         return false;
     }
     if( damage_ != rhs.damage_ ) {
@@ -8278,6 +8279,19 @@ bool item::reload( Character &u, item_location ammo, int qty )
         debugmsg( "Tried to reload using non-existent ammo" );
         return false;
     }
+    bool reload_fave;
+    // Reload using favorite setting of container or existing item.
+    if( has_item_with( [&ammo]( const item & it ) {
+    return it.typeId() == ammo->typeId();
+    } ) ) {
+        // If there is ammo in destination then use its favorite setting.
+        reload_fave = has_item_with( [&ammo]( const item & it ) {
+            return it.typeId() == ammo->typeId() && it.is_favorite;
+        } );
+        // If no ammo in destination then use the container favorite setting.
+    } else {
+        reload_fave = is_favorite;
+    }
 
     bool ammo_from_map = !ammo.held_by( u );
     item_location container;
@@ -8323,6 +8337,7 @@ bool item::reload( Character &u, item_location ammo, int qty )
             curammo = ammo->contents.first_ammo().type;
             qty = std::min( qty, ammo->ammo_remaining() );
             item ammo_copy( ammo->contents.first_ammo() );
+            ammo_copy.set_favorite( reload_fave );
             ammo_copy.charges = qty;
             put_in( ammo_copy, item_pocket::pocket_type::MAGAZINE );
             ammo->ammo_consume( qty, tripoint_zero );
@@ -8333,6 +8348,7 @@ bool item::reload( Character &u, item_location ammo, int qty )
             // any excess is wasted rather than overfilling the item
             item plut( *ammo );
             plut.charges = std::min( qty * PLUTONIUM_CHARGES, ammo_capacity( ammo_plutonium ) );
+            plut.set_favorite( reload_fave );
             put_in( plut, item_pocket::pocket_type::MAGAZINE );
         } else {
             curammo = ammo->type;
@@ -8340,6 +8356,7 @@ bool item::reload( Character &u, item_location ammo, int qty )
             item item_copy( *ammo );
             ammo->charges -= qty;
             item_copy.charges = qty;
+            item_copy.set_favorite( reload_fave );
             put_in( item_copy, item_pocket::pocket_type::MAGAZINE );
         }
     } else if( is_watertight_container() ) {
@@ -8351,6 +8368,7 @@ bool item::reload( Character &u, item_location ammo, int qty )
             container->on_contents_changed();
         }
         item contents( ammo->type );
+        contents.set_favorite( reload_fave );
         fill_with( contents, qty );
         if( ammo.has_parent() ) {
             ammo.parent_item()->contained_where( *ammo.get_item() )->on_contents_changed();
