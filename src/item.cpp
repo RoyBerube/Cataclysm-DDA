@@ -8279,20 +8279,24 @@ bool item::reload( Character &u, item_location ammo, int qty )
         debugmsg( "Tried to reload using non-existent ammo" );
         return false;
     }
+    const bool save_fave = ammo->is_favorite;
     bool reload_fave;
     // Reload using favorite setting of container or existing item.
-    if( has_item_with( [&ammo]( const item & it ) {
-    return it.typeId() == ammo->typeId();
+    if( !has_item_with( [&ammo, &reload_fave]( const item & it ) {
+    if( it.typeId() == ammo->typeId() ) {
+            reload_fave = it.is_favorite;
+            return true;
+        } else {
+            return false;
+        }
     } ) ) {
-        // If there is ammo in destination then use its favorite setting.
-        reload_fave = has_item_with( [&ammo]( const item & it ) {
-            return it.typeId() == ammo->typeId() && it.is_favorite;
-        } );
-        // If no ammo in destination then use the container favorite setting.
-    } else {
         reload_fave = is_favorite;
-    }
+    };
 
+    // Kludge to get revolver type ammo favorite setting.
+    if( is_firearm() &&!contents.empty() ) {
+        reload_fave = contents.first_ammo().is_favorite;
+    }
     bool ammo_from_map = !ammo.held_by( u );
     item_location container;
     if( ammo->has_flag( flag_SPEEDLOADER ) ) {
@@ -8305,6 +8309,7 @@ bool item::reload( Character &u, item_location ammo, int qty )
         return false;
     }
 
+    ammo->set_favorite( reload_fave );
     // limit quantity of ammo loaded to remaining capacity
     int limit = 0;
     if( is_watertight_container() ) {
@@ -8392,6 +8397,7 @@ bool item::reload( Character &u, item_location ammo, int qty )
             return false;
         }
 
+        //ammo->set_favorite( reload_fave );
         put_in( *ammo, item_pocket::pocket_type::MAGAZINE_WELL );
         ammo.remove_item();
         if( ammo_from_map ) {
@@ -8411,6 +8417,9 @@ bool item::reload( Character &u, item_location ammo, int qty )
     }
     if( ammo_from_map ) {
         u.invalidate_weight_carried_cache();
+    }
+    if( ammo ) {
+        ammo->set_favorite( save_fave );
     }
     return true;
 }

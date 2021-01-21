@@ -7709,17 +7709,17 @@ bool Character::pour_into( item &container, item &liquid )
     // Transfer the liquid using the same favorite flag as the container's content.
     // Otherwise two stacks can appear - favorite and non-favorite.
     bool reload_fave;
-    if( container.has_item_with( [&liquid]( const item & it ) {
-    return it.typeId() == liquid.typeId();
+    if( !container.has_item_with( [&liquid, &reload_fave]( const item & it ) {
+    if( it.typeId() == liquid.typeId() ) {
+            reload_fave = it.is_favorite;
+            return true;
+        } else {
+            return false;
+        }
     } ) ) {
-        // If there is ammo in destination then use its favorite setting.
-        reload_fave = container.has_item_with( [&liquid]( const item & it ) {
-            return it.typeId() == liquid.typeId() && it.is_favorite;
-        } );
-        // If no ammo in destination then use the container favorite setting.
-    } else {
         reload_fave = container.is_favorite;
-    }
+    };
+
     liquid.set_favorite( reload_fave );
     liquid.charges -= container.fill_with( liquid, amount );
     inv->unsort();
